@@ -42,12 +42,14 @@ class ReplayBuffer:
 
 
 
-def td3(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0, 
-        steps_per_epoch=4000, epochs=100, replay_size=int(1e6), gamma=0.99, 
-        polyak=0.995, pi_lr=1e-3, q_lr=1e-3, batch_size=100, start_steps=10000, 
-        update_after=1000, update_every=50, act_noise=0.1, target_noise=0.2, 
-        noise_clip=0.5, policy_delay=2, num_test_episodes=10, max_ep_len=1000, 
-        logger_kwargs=dict(), save_freq=1):
+def td3(env_fn = core.ALMEnv, actor_critic = core.MLPActorCritic,
+        ac_kwargs = dict(), seed = 0, steps_per_epoch = 4000, epochs = 100,
+        replay_size = int(1e6), gamma = .99, polyak = .995, pi_lr = 1e-3,
+        q_lr = 1e-3, batch_size = 100, start_steps = 10^4, update_after = 10^3,
+        update_every = 50, act_noise = .01, target_noise = .2, noise_clip = .5,
+        policy_delay = 2, num_test_episodes = 10, max_ep_len = 10^3,
+        logger_kwargs = dict(), save_freq = 1, time_horizon = 80,
+        discount_rate = .06):
     """
     Twin Delayed Deep Deterministic Policy Gradient (TD3)
 
@@ -56,17 +58,17 @@ def td3(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         env_fn : A function which creates a copy of the environment.
             The environment must satisfy the OpenAI Gym API.
 
-        actor_critic: The constructor method for a PyTorch Module with an ``act`` 
+        actor_critic: The constructor method for a PyTorch Module with an ``act``
             method, a ``pi`` module, a ``q1`` module, and a ``q2`` module.
-            The ``act`` method and ``pi`` module should accept batches of 
-            observations as inputs, and ``q1`` and ``q2`` should accept a batch 
-            of observations and a batch of actions as inputs. When called, 
+            The ``act`` method and ``pi`` module should accept batches of
+            observations as inputs, and ``q1`` and ``q2`` should accept a batch
+            of observations and a batch of actions as inputs. When called,
             these should return:
 
             ===========  ================  ======================================
             Call         Output Shape      Description
             ===========  ================  ======================================
-            ``act``      (batch, act_dim)  | Numpy array of actions for each 
+            ``act``      (batch, act_dim)  | Numpy array of actions for each
                                            | observation.
             ``pi``       (batch, act_dim)  | Tensor containing actions from policy
                                            | given observations.
@@ -74,18 +76,18 @@ def td3(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
                                            | of Q* for the provided observations
                                            | and actions. (Critical: make sure to
                                            | flatten this!)
-            ``q2``       (batch,)          | Tensor containing the other current 
+            ``q2``       (batch,)          | Tensor containing the other current
                                            | estimate of Q* for the provided observations
                                            | and actions. (Critical: make sure to
                                            | flatten this!)
             ===========  ================  ======================================
 
-        ac_kwargs (dict): Any kwargs appropriate for the ActorCritic object 
+        ac_kwargs (dict): Any kwargs appropriate for the ActorCritic object
             you provided to TD3.
 
         seed (int): Seed for random number generators.
 
-        steps_per_epoch (int): Number of steps of interaction (state-action pairs) 
+        steps_per_epoch (int): Number of steps of interaction (state-action pairs)
             for the agent and the environment in each epoch.
 
         epochs (int): Number of epochs to run and train agent.
@@ -94,14 +96,14 @@ def td3(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
         gamma (float): Discount factor. (Always between 0 and 1.)
 
-        polyak (float): Interpolation factor in polyak averaging for target 
-            networks. Target networks are updated towards main networks 
+        polyak (float): Interpolation factor in polyak averaging for target
+            networks. Target networks are updated towards main networks
             according to:
 
-            .. math:: \\theta_{\\text{targ}} \\leftarrow 
+            .. math:: \\theta_{\\text{targ}} \\leftarrow
                 \\rho \\theta_{\\text{targ}} + (1-\\rho) \\theta
 
-            where :math:`\\rho` is polyak. (Always between 0 and 1, usually 
+            where :math:`\\rho` is polyak. (Always between 0 and 1, usually
             close to 1.)
 
         pi_lr (float): Learning rate for policy.
@@ -118,20 +120,20 @@ def td3(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
             is full enough for useful updates.
 
         update_every (int): Number of env interactions that should elapse
-            between gradient descent updates. Note: Regardless of how long 
-            you wait between updates, the ratio of env steps to gradient steps 
+            between gradient descent updates. Note: Regardless of how long
+            you wait between updates, the ratio of env steps to gradient steps
             is locked to 1.
 
-        act_noise (float): Stddev for Gaussian exploration noise added to 
+        act_noise (float): Stddev for Gaussian exploration noise added to
             policy at training time. (At test time, no noise is added.)
 
-        target_noise (float): Stddev for smoothing noise added to target 
+        target_noise (float): Stddev for smoothing noise added to target
             policy.
 
-        noise_clip (float): Limit for absolute value of target policy 
+        noise_clip (float): Limit for absolute value of target policy
             smoothing noise.
 
-        policy_delay (int): Policy will only be updated once every 
+        policy_delay (int): Policy will only be updated once every
             policy_delay times for each update of the Q-networks.
 
         num_test_episodes (int): Number of episodes to test the deterministic
@@ -152,7 +154,9 @@ def td3(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    env, test_env = env_fn(), env_fn()
+    # env, test_env = env_fn(), env_fn() original OpenAI SpinningUp entry
+    env = env_fn(T = time_horizon, rate = discount_rate) # Added by the author
+    test_env = env_fn(T = time_horizon, rate = discount_rate) # Added by the author
     obs_dim = env.observation_space.shape
     act_dim = env.action_space.shape[0]
 
@@ -166,7 +170,7 @@ def td3(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
     # Freeze target networks with respect to optimizers (only update via polyak averaging)
     for p in ac_targ.parameters():
         p.requires_grad = False
-        
+
     # List of parameters for both Q-networks (save this for convenience)
     q_params = itertools.chain(ac.q1.parameters(), ac.q2.parameters())
 
@@ -237,7 +241,7 @@ def td3(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         # Possibly update pi and target networks
         if timer % policy_delay == 0:
 
-            # Freeze Q-networks so you don't waste computational effort 
+            # Freeze Q-networks so you don't waste computational effort
             # computing gradients for them during the policy learning step.
             for p in q_params:
                 p.requires_grad = False
@@ -285,10 +289,10 @@ def td3(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
     # Main loop: collect experience in env and update/log each epoch
     for t in range(total_steps):
-        
+
         # Until start_steps have elapsed, randomly sample actions
-        # from a uniform distribution for better exploration. Afterwards, 
-        # use the learned policy (with some noise, via act_noise). 
+        # from a uniform distribution for better exploration. Afterwards,
+        # use the learned policy (with some noise, via act_noise).
         if t > start_steps:
             a = get_action(o, act_noise)
         else:
@@ -307,7 +311,7 @@ def td3(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         # Store experience to replay buffer
         replay_buffer.store(o, a, r, o2, d)
 
-        # Super critical, easy to overlook step: make sure to update 
+        # Super critical, easy to overlook step: make sure to update
         # most recent observation!
         o = o2
 
@@ -363,6 +367,6 @@ if __name__ == '__main__':
     logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
 
     td3(lambda : gym.make(args.env), actor_critic=core.MLPActorCritic,
-        ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), 
+        ac_kwargs=dict(hidden_sizes=[args.hid]*args.l),
         gamma=args.gamma, seed=args.seed, epochs=args.epochs,
         logger_kwargs=logger_kwargs)
