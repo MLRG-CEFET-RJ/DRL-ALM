@@ -28,7 +28,7 @@ class MLPActor(nn.Module):
     def __init__(self, obs_dim, act_dim, hidden_sizes, activation, act_limit):
         super().__init__()
         pi_sizes = [obs_dim] + list(hidden_sizes) + [act_dim]
-        # self.pi = mlp(pi_sizes, activation, nn.Tanh) original entry
+        # self.pi = mlp(pi_sizes, activation, nn.Tanh) Original entry
         self.pi = mlp(pi_sizes, activation, nn.Softmax) # Changed for ALMEnv
         self.act_limit = act_limit
 

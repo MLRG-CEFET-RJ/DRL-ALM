@@ -1,6 +1,7 @@
 from copy import deepcopy
 import itertools
 import numpy as np
+import pandas as pd
 import torch
 from torch.optim import Adam
 import gym
@@ -40,13 +41,22 @@ class ReplayBuffer:
                      done=self.done_buf[idxs])
         return {k: torch.as_tensor(v, dtype=torch.float32) for k,v in batch.items()}
 
-
+"""
+The following parameters have been changed:
+env_fn: default value set to core.ALMEnv
+epochs: default value changed from 100 to 300
+act_noise: default value changed from .1 to .01
+target_noise: default value changed from .2 to .02
+noise_clip: default value changed from .5 to .05
+time_horizon: added parameter, with default value 80
+discount_rate: added parameter, with default value .06
+"""
 
 def td3(env_fn = core.ALMEnv, actor_critic = core.MLPActorCritic,
-        ac_kwargs = dict(), seed = 0, steps_per_epoch = 4000, epochs = 100,
+        ac_kwargs = dict(), seed = 0, steps_per_epoch = 4000, epochs = 300,
         replay_size = int(1e6), gamma = .99, polyak = .995, pi_lr = 1e-3,
         q_lr = 1e-3, batch_size = 100, start_steps = 10^4, update_after = 10^3,
-        update_every = 50, act_noise = .01, target_noise = .2, noise_clip = .5,
+        update_every = 50, act_noise = .01, target_noise = .02, noise_clip = .05,
         policy_delay = 2, num_test_episodes = 10, max_ep_len = 10^3,
         logger_kwargs = dict(), save_freq = 1, time_horizon = 80,
         discount_rate = .06):
@@ -195,8 +205,8 @@ def td3(env_fn = core.ALMEnv, actor_critic = core.MLPActorCritic,
             # Target policy smoothing
             epsilon = torch.randn_like(pi_targ) * target_noise
             epsilon = torch.clamp(epsilon, -noise_clip, noise_clip)
-            a2 = pi_targ + epsilon
-            a2 = torch.clamp(a2, -act_limit, act_limit)
+            a2 = pi_targ * (epsilon + 1)
+            a2 = a2 / a2.sum()
 
             # Target Q-values
             q1_pi_targ = ac_targ.q1(o2, a2)
@@ -269,8 +279,8 @@ def td3(env_fn = core.ALMEnv, actor_critic = core.MLPActorCritic,
 
     def get_action(o, noise_scale):
         a = ac.act(torch.as_tensor(o, dtype=torch.float32))
-        a += noise_scale * np.random.randn(act_dim)
-        return np.clip(a, -act_limit, act_limit)
+        a = a * (1 + noise_scale * np.random.randn(act_dim))
+        return a / a.sum()
 
     def test_agent():
         for j in range(num_test_episodes):
@@ -354,19 +364,22 @@ def td3(env_fn = core.ALMEnv, actor_critic = core.MLPActorCritic,
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env', type=str, default='HalfCheetah-v2')
+    # parser.add_argument('--env', type=str, default='HalfCheetah-v2') Original entry
     parser.add_argument('--hid', type=int, default=256)
     parser.add_argument('--l', type=int, default=2)
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument('--time_horizon', type = int, default = 80) # Added by the author
+    parser.add_argument('--discount_rate', type = float, default = 0.06) # Added by the author
     parser.add_argument('--exp_name', type=str, default='td3')
     args = parser.parse_args()
 
     from spinup.utils.run_utils import setup_logger_kwargs
     logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
 
-    td3(lambda : gym.make(args.env), actor_critic=core.MLPActorCritic,
+    td3(env_fn = core.ALMEnv, actor_critic=core.MLPActorCritic,
         ac_kwargs=dict(hidden_sizes=[args.hid]*args.l),
         gamma=args.gamma, seed=args.seed, epochs=args.epochs,
-        logger_kwargs=logger_kwargs)
+        logger_kwargs=logger_kwargs, time_horizon = args.time_horizon,
+        discount_rate = args.discount_rate)
